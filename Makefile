@@ -31,6 +31,7 @@ endif
 
 # build
 build: pre_build build_yaml build_middleware
+build_amd64: pre_build build_yaml build_linux_amd64
 
 pre_build:
 	rm -rf $(BUILD_TARGET_PKG_DIR) $(BUILD_TARGET_PKG_FILE_PATH)
@@ -50,6 +51,9 @@ build_linux:
 		-v $(BLADE_SRC_ROOT):/chaosblade-exec-middleware \
 		-w /chaosblade-exec-middleware \
 		chaosblade-middleware-build-musl:latest
+
+build_linux_amd64:
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o $(BUILD_TARGET_BIN)/chaos_middleware
 
 # test
 test:

@@ -54,6 +54,10 @@ func NewCacheLimitActionSpec() spec.ExpActionCommandSpec {
 					Name: "percent",
 					Desc: "The percentage of maxmemory",
 				},
+				&spec.ExpFlag{
+					Name: "config-key-prefix",
+					Desc: "The redis key for store origin maxmemory",
+				},
 			},
 			ActionExecutor: &CacheLimitExecutor{},
 			ActionExample: `
@@ -102,6 +106,7 @@ func (cle *CacheLimitExecutor) Exec(uid string, ctx context.Context, model *spec
 	passwordStr := model.ActionFlags["password"]
 	sizeStr := model.ActionFlags["size"]
 	percentStr := model.ActionFlags["percent"]
+	keyPrefixStr := model.ActionFlags["config-key-prefix"]
 
 	cli := redis.NewClient(&redis.Options{
 		Addr:     addrStr,
@@ -116,7 +121,7 @@ func (cle *CacheLimitExecutor) Exec(uid string, ctx context.Context, model *spec
 
 	if _, ok := spec.IsDestroy(ctx); ok {
 		// get the value of origin maxmemory
-		originCacheSize, err := cli.Get(cli.Context(), "origin_maxmemory_"+uid).Result()
+		originCacheSize, err := cli.Get(cli.Context(), keyPrefixStr+"origin_maxmemory_"+uid).Result()
 		if err != nil {
 			errMsg := "redis get origin max memory error: " + err.Error()
 			log.Errorf(ctx, errMsg)
@@ -134,7 +139,7 @@ func (cle *CacheLimitExecutor) Exec(uid string, ctx context.Context, model *spec
 	}
 	// get the value of maxmemory
 	originCacheSize := fmt.Sprint(maxmemory[1])
-	return cle.start(ctx, uid, cli, percentStr, originCacheSize, sizeStr)
+	return cle.start(ctx, uid, cli, percentStr, originCacheSize, sizeStr, keyPrefixStr)
 }
 
 func (cle *CacheLimitExecutor) SetChannel(channel spec.Channel) {
@@ -157,7 +162,7 @@ func (cle *CacheLimitExecutor) stop(ctx context.Context, cli *redis.Client, orig
 	return spec.ReturnSuccess("cache memory limit restored")
 }
 
-func (cle *CacheLimitExecutor) start(ctx context.Context, uid string, cli *redis.Client, percentStr string, originCacheSize string, sizeStr string) *spec.Response {
+func (cle *CacheLimitExecutor) start(ctx context.Context, uid string, cli *redis.Client, percentStr string, originCacheSize string, sizeStr string, keyPrefixStr string) *spec.Response {
 	var cacheSize string
 	if percentStr != "" {
 		percentage, err := strconv.ParseFloat(percentStr[0:len(percentStr)-1], 64)
@@ -189,7 +194,7 @@ func (cle *CacheLimitExecutor) start(ctx context.Context, uid string, cli *redis
 		return spec.ResponseFailWithFlags(spec.ActionNotSupport, errMsg)
 	}
 
-	originErr := cli.Set(cli.Context(), "origin_maxmemory_"+uid, originCacheSize, 0).Err()
+	originErr := cli.Set(cli.Context(), keyPrefixStr+"origin_maxmemory_"+uid, originCacheSize, 0).Err()
 	if originErr != nil {
 		errMsg := "redis set origin max memory error: " + originErr.Error()
 		log.Errorf(ctx, errMsg)
